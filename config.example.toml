@@ -1,0 +1,176 @@
+# =============================================================================
+#  invest-tui — configuration
+#  Copiez ce fichier en `config.toml` puis adaptez-le.
+#  Les chemins relatifs sont résolus depuis le dossier de ce fichier.
+# =============================================================================
+
+[profile]
+name = "Investisseur"
+base_currency = "EUR"          # ISO 4217
+capital = 25000.0              # capital total investissable (liquidités + positions)
+monthly_dca = 500.0            # versement mensuel programmé
+risk_tolerance = "moderate"    # conservative | moderate | aggressive
+horizon_years = 15
+tax_residence = "BE"           # ISO 3166-1 alpha-2
+max_position_pct = 30.0        # poids max d'une ligne (hors ETF monde, à votre discrétion)
+deploy_months = 6              # étalement (mois) du cash non investi immédiatement
+max_positions = 4              # nombre max d'actifs achetés (la watchlist n'est qu'un radar)
+min_line_amount = 50.0         # montant minimal par ligne (moins d'actifs si petit budget)
+goals = ["Indépendance financière", "Retraite complémentaire"]
+notes = "Cœur ETF monde, satellite crypto ≤ 10 %. Pas d'effet de levier."
+
+# -----------------------------------------------------------------------------
+# Clés API : valeur en clair, "env:NOM_VARIABLE", ou absente
+# (lue alors dans OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY,
+#  FINNHUB_API_KEY, ALPHA_VANTAGE_API_KEY). Ne versionnez jamais vos clés.
+# -----------------------------------------------------------------------------
+[api_keys]
+# anthropic = "env:ANTHROPIC_API_KEY"
+# finnhub   = "env:FINNHUB_API_KEY"
+
+# -----------------------------------------------------------------------------
+# Watchlist. `isin` = identifiant affiché par Trade Republic : il sert à relier
+# vos relevés / positions TR au ticker utilisé pour les cours en direct.
+#
+# `reference` (facultatif) = contrat future de référence (ticker Yahoo) sur
+# lequel porte toute l'analyse technique, en devise native, sans bruit de change.
+# Le cours de l'actif lui-même ne sert alors qu'à la valorisation en euros.
+#   CME   : BTC=F, ETH=F, ES=F (S&P 500), NQ=F (Nasdaq 100), YM=F (Dow)
+#   NYMEX : CL=F (WTI), NG=F (gaz), PL=F (platine)
+#   COMEX : GC=F (or), SI=F (argent), HG=F (cuivre)
+#   EUREX : Yahoo ne diffuse pas ses futures ; ^GDAXI / ^STOXX50E (sans volume) sont
+#           remplacés automatiquement par les ETF Xetra EXS1.DE / EXW1.DE (eurex_proxy = false
+#           pour garder l'indice : la VWAP devient alors une TWAP)
+# `reference_exchange` et `rollover` (none|monthly|bimonthly|quarterly) sont déduits du ticker ;
+# `reference_interval` = "1d" ou "1h". Futures crypto : `spot_bridge` (ex. "BTCUSDT", "off")
+# comble les données CME manquantes par le spot Binance ajusté du basis.
+# -----------------------------------------------------------------------------
+[[watchlist.crypto]]
+symbol = "BTCEUR"              # paire Binance (cours live par WebSocket)
+name = "Bitcoin"
+isin = "XF000BTC0017"          # code Trade Republic
+interval = "1h"
+reference = "BTC=F"            # CME Bitcoin Futures
+
+[[watchlist.crypto]]
+symbol = "ETHEUR"
+name = "Ethereum"
+isin = "XF000ETH0019"
+interval = "1h"
+reference = "ETH=F"            # CME Ether Futures
+
+[[watchlist.stocks]]
+symbol = "IWDA.AS"             # iShares Core MSCI World (Euronext Amsterdam)
+name = "iShares Core MSCI World"
+isin = "IE00B4L5Y983"
+kind = "etf"
+dca_share_pct = 50.0           # part du DCA mensuel (le reste est réparti également)
+currency = "EUR"
+# transaction_tax_pct = 0.12   # surcharge par actif du taux de broker.fees
+
+[[watchlist.stocks]]
+symbol = "VWCE.DE"             # Vanguard FTSE All-World Acc (Xetra)
+name = "Vanguard FTSE All-World"
+isin = "IE00BK5BQT80"
+kind = "etf"
+currency = "EUR"
+
+[[watchlist.stocks]]
+symbol = "NVDA"
+name = "NVIDIA"
+isin = "US67066G1040"
+kind = "stock"
+currency = "USD"
+
+# -----------------------------------------------------------------------------
+[feeds]
+binance_ws_url = "wss://stream.binance.com:9443/stream"
+binance_rest_url = "https://api.binance.com"
+stock_provider = "yahoo"       # cours actions/ETF : yahoo (sans clé) | finnhub | alpha_vantage
+# stock_fallback = "finnhub"   # secours si le fournisseur principal échoue (clé requise)
+history_provider = "yahoo"     # historique journalier (seul Yahoo le fournit gratuitement)
+stock_poll_secs = 600          # 10 min, pendant les séances uniquement
+poll_outside_market_hours = false
+rate_limit_backoff_max_secs = 3600   # plafond du backoff après un HTTP 429
+# user_agent = "Mozilla/5.0 …"       # défaut : navigateur de bureau récent
+history_candles = 500          # bougies chargées au démarrage (≥ warm-up EMA 200)
+reconnect_initial_ms = 500
+reconnect_max_ms = 60000
+http_timeout_secs = 10
+
+# -----------------------------------------------------------------------------
+[engine]
+rsi_period = 14
+rsi_oversold = 30.0
+rsi_overbought = 70.0
+ema_fast = 50
+ema_slow = 200
+macd_fast = 12
+macd_slow = 26
+macd_signal = 9
+bollinger_period = 20
+bollinger_std = 2.0
+volume_lookback = 20
+volume_spike_ratio = 2.0
+support_lookback = 50
+volatility_lookback = 30
+strong_buy_threshold = 72.0    # décalé de +5 (prudent) / -5 (dynamique)
+dca_threshold = 55.0
+hysteresis = 3.0
+score_smoothing_secs = 20.0
+alert_cooldown_secs = 900
+stocks_closed_candles_only = true    # RSI/EMA/MACD/volume sur clôtures J-1 ; cours live pour les écarts de prix
+crypto_closed_candles_only = false   # crypto : bougie en cours incluse (marché continu)
+references_closed_candles_only = true
+vwap_period = 20               # VWAP glissante (bougies)
+atr_period = 14
+impulse_atr_mult = 2.0         # mouvement impulsif : variation > 2 × ATR(14)…
+impulse_volume_mult = 1.5      # … et volume > 1,5 × volume moyen (volume_lookback)
+avwap_lookback = 120           # profondeur de recherche du dernier mouvement impulsif
+swing_window = 5               # bougies avant l'impulsion pour trouver le point d'ancrage
+rollover_adjust = true         # back-adjustment des sauts de changement d'échéance (futures)
+rollover_gap_threshold_pct = 0.25    # gap minimal (%) dans une fenêtre de roulement
+rollover_force_gap_pct = 0.0   # gap (%) ajusté même hors fenêtre ; 0 = jamais
+
+# -----------------------------------------------------------------------------
+[ai]
+provider = "ollama"            # openai | anthropic | gemini | ollama
+model = "llama3.1:8b"          # identifiant exact du modèle chez le fournisseur
+# base_url = "http://localhost:11434"
+temperature = 0.3
+max_tokens = 1024
+auto_advice_on_strong_signal = true
+auto_advice_min_interval_secs = 600
+language = "fr"
+request_timeout_secs = 120
+
+# -----------------------------------------------------------------------------
+[ui]
+fps = 30
+sparkline_points = 120
+
+# -----------------------------------------------------------------------------
+[storage]
+database_path = "invest.db"
+portfolio_path = "portfolio.json"
+log_dir = "logs"
+
+# -----------------------------------------------------------------------------
+#  Courtier : Trade Republic
+# -----------------------------------------------------------------------------
+[broker]
+name = "Trade Republic"
+portfolio_source = "json"      # fournisseur des positions (extensible)
+
+[broker.fees]
+single_order_fee = 1.0         # ordre ponctuel
+savings_plan_fee = 0.0         # plan d'investissement programmé
+min_savings_plan_amount = 1.0  # vérifiez le minimum actuel dans l'app
+max_fee_pct = 0.5              # au-delà, l'ordre ponctuel est déconseillé
+transaction_tax_pct = 0.0      # taxe par défaut (ex. TOB belge) ; le taux dépend du type
+                               # d'instrument : surchargez-le par actif si besoin
+
+[broker.import]                # import local hors ligne (touche I dans la TUI)
+dir = "imports"
+rules_path = "parser_rules.toml"
+archive_processed = true

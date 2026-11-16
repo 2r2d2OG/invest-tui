@@ -1,0 +1,9 @@
+/target
+# Données personnelles : ne jamais versionner
+config.toml
+portfolio.json
+*.db
+*.db-wal
+*.db-shm
+/imports/
+/logs/

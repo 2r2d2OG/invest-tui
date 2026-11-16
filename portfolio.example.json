@@ -1,0 +1,8 @@
+{
+  "currency": "EUR",
+  "cash": 3200.0,
+  "holdings": [
+    { "symbol": "IWDA.AS", "isin": "IE00B4L5Y983", "quantity": 120.0, "avg_buy_price": 88.40, "account": "Trade Republic" },
+    { "symbol": "BTCEUR",  "isin": "XF000BTC0017", "quantity": 0.035, "avg_buy_price": 61250.0, "account": "Trade Republic" }
+  ]
+}

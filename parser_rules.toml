@@ -1,0 +1,94 @@
+# =============================================================================
+#  Règles d'extraction des relevés Trade Republic (import local hors ligne)
+#
+#  Modifiable sans recompiler : les règles sont relues à chaque ouverture de
+#  la fenêtre d'import (touche I). Pour mettre au point une regex :
+#
+#      invest-tui --test-parser imports/mon_releve.pdf
+#
+#  affiche le texte brut extrait du PDF, la règle reconnue et les opérations.
+#
+#  Syntaxe des regex : crate Rust `regex` (https://docs.rs/regex).
+#  Les chaînes '''…''' sont littérales : pas besoin de doubler les « \ ».
+#  Chaque regex de champ doit contenir un groupe nommé du nom du champ,
+#  ex. (?P<date>…) ; à défaut, le premier groupe est utilisé.
+#
+#  ⚠ Ces règles sont un point de départ écrit sans relevé réel : ajustez-les
+#    sur vos premiers documents avec --test-parser.
+# =============================================================================
+
+version = 1
+
+[defaults]
+order_fee = 1.0              # frais d'un ordre ponctuel si le document ne les indique pas
+savings_plan_fee = 0.0       # plan d'investissement programmé
+currency = "EUR"
+date_formats = ["%d/%m/%Y", "%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y", "%d.%m.%y"]
+
+# -----------------------------------------------------------------------------
+#  Type d'opération : le PREMIER motif qui correspond l'emporte.
+#  Le plan d'épargne doit précéder l'achat (ses documents contiennent souvent « achat »).
+# -----------------------------------------------------------------------------
+[[kinds]]
+kind = "savings_plan"
+pattern = '''(?i)plan\s+d['’]investissement|plan\s+d['’][ée]pargne|sparplan|savings\s+plan'''
+
+[[kinds]]
+kind = "sell"
+pattern = '''(?i)\bvente\b|\bverkauf\b|\bsell\b'''
+
+[[kinds]]
+kind = "dividend"
+pattern = '''(?i)\bdividendes?\b|\bdividends?\b|aussch[üu]ttung'''
+
+[[kinds]]
+kind = "buy"
+pattern = '''(?i)\bachat\b|\bkauf\b|\bbuy\b'''
+
+# -----------------------------------------------------------------------------
+#  Documents PDF : la PREMIÈRE règle dont « detect » correspond est utilisée.
+#    mode = "single" : une opération par document ; chaque champ est cherché
+#                      dans tout le texte (date et isin obligatoires).
+#    mode = "multi"  : une regex « line » appliquée à chaque opération du
+#                      document, avec les groupes nommés
+#                      date, kind, isin, quantity, price, fees, amount, currency.
+# -----------------------------------------------------------------------------
+
+[[pdf]]
+name = "Relevé de compte (modèle)"
+detect = '''(?i)relev[ée]\s+de\s+compte|kontoauszug|account\s+statement'''
+mode = "multi"
+line = '''(?m)^\s*(?P<date>\d{1,2}[./]\d{1,2}[./]\d{4})\s+(?P<kind>.+?)\s+(?P<isin>[A-Z]{2}[A-Z0-9]{9}\d)\s+(?P<quantity>\d+(?:[.,]\d+)?)\s+(?P<price>\d[\d.,]*)\s+(?P<amount>\d[\d.,]*[.,]\d{2})\s*(?:EUR|€)?\s*$'''
+
+[[pdf]]
+name = "Avis d'exécution Trade Republic"
+detect = '''(?i)trade\s*republic|avis\s+d['’]ex[ée]cution|wertpapierabrechnung'''
+mode = "single"
+
+[pdf.fields]
+date = '''(?i)\b(?:date|datum)\b\D{0,20}(?P<date>\d{1,2}[./-]\d{1,2}[./-]\d{2,4})'''
+# Le premier ISIN dont la clé de contrôle est valide est retenu.
+isin = '''\b(?P<isin>[A-Z]{2}[A-Z0-9]{9}\d)\b'''
+quantity = '''(?i)(?P<quantity>\d+(?:[.,]\d+)?)\s*(?:titre\(s\)|titres?|pcs?\.?|stk\.?|st[üu]ck|parts?|shares?|unit[ée]s?)(?:\s|$)'''
+price = '''(?i)(?:cours(?:\s+moyen)?\s*:?\s*|(?:titre\(s\)|titres?|pcs?\.?|stk\.?|st[üu]ck|parts?|shares?)\s+)(?P<price>\d[\d .,]*\d)\s*(?:EUR|€|USD|\$)'''
+fees = '''(?i)(?:frais(?:\s+externes|\s+de\s+transaction|\s+d['’]ordre)?|fremdkostenzuschlag|ordergeb[üu]hr|\bfees?\b)\s*:?\s*-?\s*(?P<fees>\d+[.,]\d{2})\s*(?:EUR|€)'''
+amount = '''(?i)\b(?:total|gesamt|montant\s+net|net\s+amount)\b\s*:?\s*-?\s*(?P<amount>\d[\d .,]*\d)\s*(?:EUR|€|USD)'''
+
+# -----------------------------------------------------------------------------
+#  Exports CSV : chaque colonne est reconnue par l'un de ses alias
+#  (comparaison insensible à la casse). Les lignes sans ISIN (virements,
+#  intérêts…) sont ignorées. Deux valeurs parmi quantité / cours / montant
+#  suffisent : la troisième est déduite.
+# -----------------------------------------------------------------------------
+[csv]
+delimiter = "auto"           # auto | ";" | "," | "\t"
+
+[csv.columns]
+date = ["date", "datum", "booking date", "date de l'opération", "date d'exécution"]
+type = ["type", "typ", "transaction type", "opération", "operation"]
+isin = ["isin"]
+quantity = ["quantité", "quantite", "quantity", "shares", "stück", "anzahl", "nombre de titres"]
+price = ["cours", "prix", "price", "kurs", "prix unitaire"]
+fees = ["frais", "fee", "fees", "gebühren", "gebuehren"]
+amount = ["montant", "amount", "betrag", "total", "montant net"]
+currency = ["devise", "currency", "währung", "waehrung"]

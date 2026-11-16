@@ -1,0 +1,63 @@
+[package]
+name = "invest-tui"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"  # let-chains (édition 2024)
+description = "Assistant d'investissement temps réel en terminal : watchlist live, moteur de timing d'entrée et conseiller IA"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "invest-tui"
+path = "src/main.rs"
+
+[dependencies]
+# --- Runtime asynchrone -------------------------------------------------------
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "sync", "time"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+# --- Interface terminal -------------------------------------------------------
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
+
+# --- Réseau -------------------------------------------------------------------
+# rustls partout : pas de dépendance à OpenSSL, binaire portable.
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "query", "charset", "system-proxy", "rustls", "http2"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+
+# --- Sérialisation & configuration -------------------------------------------
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+toml = "1.2"
+directories = "6.0"
+
+# --- Stockage -----------------------------------------------------------------
+# `bundled` compile SQLite statiquement : aucune lib système requise.
+rusqlite = { version = "0.43", features = ["bundled"] }
+
+# --- Import local des relevés (100 % hors ligne) -------------------------------
+csv = "1.4"
+pdf-extract = "0.12"
+regex = "1.12"
+sha2 = "0.10"
+
+# --- Utilitaires --------------------------------------------------------------
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+chrono-tz = { version = "0.10", default-features = false, features = ["std"] }
+thiserror = "2.0"
+anyhow = "1.0"
+
+# --- Journalisation (vers fichier : stdout est occupé par la TUI) -------------
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[profile.dev.package."*"]
+# Dépendances optimisées même en debug : rendu TUI fluide pendant le dev.
+opt-level = 2
